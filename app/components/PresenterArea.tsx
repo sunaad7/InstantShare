@@ -9,6 +9,8 @@ import {
   Check,
   Users,
   QrCode,
+  Pause,
+  Play,
 } from "lucide-react";
 import QRCode from "qrcode";
 import { ShareType } from "../types";
@@ -33,6 +35,7 @@ export default function PresenterArea({
   shareType,
 }: PresenterAreaProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
   const [copied, setCopied] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [shareUrl, setShareUrl] = useState("");
@@ -86,6 +89,16 @@ export default function PresenterArea({
     } catch (err) {
       console.error("Failed to copy", err);
     }
+  };
+
+  const togglePlayPause = () => {
+    if (!videoRef.current) return;
+    if (isPaused) {
+      videoRef.current.play();
+    } else {
+      videoRef.current.pause();
+    }
+    setIsPaused(!isPaused);
   };
 
   const hasAudioTrack = localStream
@@ -223,7 +236,7 @@ export default function PresenterArea({
           </div>
       </div>
 
-      <div className="relative aspect-video bg-[#030305] border border-white/10 rounded-none overflow-hidden shadow-2xl">
+      <div className="relative aspect-video bg-[#030305] border border-white/10 rounded-none overflow-hidden shadow-2xl group">
         <video
           ref={videoRef}
           autoPlay
@@ -236,6 +249,18 @@ export default function PresenterArea({
             Local Preview
           </span>
         </div>
+        <button
+          onClick={togglePlayPause}
+          className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+        >
+          <div className="bg-black/80 border border-white/10 backdrop-blur-md p-3 rounded-none">
+            {isPaused ? (
+              <Play className="h-6 w-6 text-white fill-white" />
+            ) : (
+              <Pause className="h-6 w-6 text-white" />
+            )}
+          </div>
+        </button>
       </div>
 
       {participants.length > 0 && (

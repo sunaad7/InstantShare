@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, useState } from "react";
 import {
   Play,
+  Pause,
   Volume2,
   VolumeX,
   Maximize2,
@@ -31,6 +32,7 @@ export default function ViewerArea({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [streamActive, setStreamActive] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
     if (videoRef.current && remoteStream) {
@@ -60,6 +62,16 @@ export default function ViewerArea({
     document.addEventListener("fullscreenchange", handler);
     return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
+
+  const togglePlayPause = () => {
+    if (!videoRef.current) return;
+    if (isPaused) {
+      videoRef.current.play();
+    } else {
+      videoRef.current.pause();
+    }
+    setIsPaused(!isPaused);
+  };
 
   const toggleMute = () => {
     setIsMuted(!isMuted);
@@ -164,9 +176,31 @@ export default function ViewerArea({
           </div>
         )}
 
+        {isPaused && streamActive && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10">
+            <button
+              onClick={togglePlayPause}
+              className="bg-black/80 border border-white/10 backdrop-blur-md p-4 rounded-none hover:bg-white/10 transition-all cursor-pointer"
+            >
+              <Play className="h-10 w-10 text-white fill-white" />
+            </button>
+          </div>
+        )}
+
         {streamActive && !autoplayBlocked && (
-          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-between z-10">
+          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-between z-20">
             <div className="flex items-center gap-4 bg-black/80 border border-white/10 backdrop-blur-md px-4 py-2 rounded-none">
+              <button
+                onClick={togglePlayPause}
+                className="text-gray-300 hover:text-white transition-colors cursor-pointer"
+                title={isPaused ? "Play" : "Pause"}
+              >
+                {isPaused ? (
+                  <Play className="h-5 w-5 text-white fill-white" />
+                ) : (
+                  <Pause className="h-5 w-5 text-white" />
+                )}
+              </button>
               <button
                 onClick={toggleMute}
                 className="text-gray-300 hover:text-white transition-colors cursor-pointer"
