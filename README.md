@@ -68,7 +68,3 @@ For public use, serve the app over HTTPS. Browsers require a secure context for 
 - Rooms exist only in the running server’s memory. Restarting or redeploying the server clears active rooms.
 - This project does not include a TURN server. Some restrictive networks may prevent direct WebRTC connections; adding TURN credentials is recommended for production reliability.
 - Screen and microphone access are always requested by the browser and must be approved by the presenter.
-
-## License
-
-Add a license file before distributing or reusing this project publicly.
