@@ -11,6 +11,8 @@ import {
   QrCode,
   Pause,
   Play,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import QRCode from "qrcode";
 import { ShareType } from "../types";
@@ -35,7 +37,9 @@ export default function PresenterArea({
   shareType,
 }: PresenterAreaProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
   const [isPaused, setIsPaused] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [shareUrl, setShareUrl] = useState("");
@@ -81,6 +85,16 @@ export default function PresenterArea({
     }
   }, [localStream]);
 
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === previewRef.current);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () =>
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
   const copyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(shareUrl);
@@ -99,6 +113,16 @@ export default function PresenterArea({
       videoRef.current.pause();
     }
     setIsPaused(!isPaused);
+  };
+
+  const toggleFullscreen = () => {
+    if (!previewRef.current) return;
+
+    if (document.fullscreenElement === previewRef.current) {
+      document.exitFullscreen().catch(console.error);
+    } else {
+      previewRef.current.requestFullscreen().catch(console.error);
+    }
   };
 
   const hasAudioTrack = localStream
@@ -236,7 +260,10 @@ export default function PresenterArea({
           </div>
       </div>
 
-      <div className="relative aspect-video bg-[#030305] border border-white/10 rounded-none overflow-hidden shadow-2xl group">
+      <div
+        ref={previewRef}
+        className="relative aspect-video bg-[#030305] border border-white/10 rounded-none overflow-hidden shadow-2xl group"
+      >
         <video
           ref={videoRef}
           autoPlay
@@ -250,8 +277,20 @@ export default function PresenterArea({
           </span>
         </div>
         <button
+          onClick={toggleFullscreen}
+          className="absolute top-4 right-4 z-20 bg-black/80 border border-white/10 hover:bg-white/10 text-gray-300 hover:text-white backdrop-blur-md p-2 rounded-none transition-all cursor-pointer"
+          title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+        >
+          {isFullscreen ? (
+            <Minimize2 className="h-4 w-4" />
+          ) : (
+            <Maximize2 className="h-4 w-4" />
+          )}
+        </button>
+        <button
           onClick={togglePlayPause}
-          className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+          className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
         >
           <div className="bg-black/80 border border-white/10 backdrop-blur-md p-3 rounded-none">
             {isPaused ? (
