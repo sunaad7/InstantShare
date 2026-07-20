@@ -40,6 +40,7 @@ export default function ViewerArea({
       setStreamActive(true);
       videoRef.current.play().catch(() => {
         setAutoplayBlocked(true);
+        setIsMuted(true);
         if (videoRef.current) {
           videoRef.current.muted = true;
           videoRef.current.play().catch(() => {});
@@ -243,16 +244,42 @@ export default function ViewerArea({
       </div>
 
       {streamActive && (
-        <div className="bg-[#0a0a0a] border border-white/10 rounded-none p-4 flex items-center justify-between">
+        <div className="bg-[#0a0a0a] border border-white/10 rounded-none p-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="h-2 w-2 rounded-none bg-white animate-pulse" />
             <span className="text-xs font-medium text-gray-300">
               Viewing Live Cast from {hostName}
             </span>
           </div>
-          <span className="text-[10px] font-mono text-gray-400 bg-white/5 px-2.5 py-1 rounded-none border border-white/10">
-            P2P WEBRTC &bull; DIRECT
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={toggleMute}
+              className="flex items-center gap-2 border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+              title={isMuted ? "Turn audio on" : "Turn audio off"}
+            >
+              {isMuted ? (
+                <VolumeX className="h-4 w-4" />
+              ) : (
+                <Volume2 className="h-4 w-4" />
+              )}
+              <span>{isMuted ? "Audio Off" : "Audio On"}</span>
+            </button>
+            <button
+              onClick={toggleFullscreen}
+              className="flex items-center gap-2 border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+              title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            >
+              {isFullscreen ? (
+                <Minimize2 className="h-4 w-4" />
+              ) : (
+                <Maximize2 className="h-4 w-4" />
+              )}
+              <span>{isFullscreen ? "Exit Fullscreen" : "Fullscreen"}</span>
+            </button>
+            <span className="text-[10px] font-mono text-gray-400 bg-white/5 px-2.5 py-1.5 rounded-none border border-white/10">
+              P2P WEBRTC &bull; DIRECT
+            </span>
+          </div>
         </div>
       )}
     </div>
