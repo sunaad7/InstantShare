@@ -170,6 +170,7 @@ export default function ChatRoom({ initialRoomId }: ChatRoomProps) {
 
     unsubs.push(
       on("viewer-joined", (msg) => {
+        console.log("[Host] viewer-joined:", msg.viewerId, "streamRef set:", !!streamRef.current);
         addSystemMessage(`System: ${msg.name} connected.`);
 
         setParticipants((prev) => {
@@ -200,6 +201,7 @@ export default function ChatRoom({ initialRoomId }: ChatRoomProps) {
 
           hostCreateOffer(pc, streamRef.current)
             .then((offer) => {
+              console.log("[Host] offer created, sending to viewer:", msg.viewerId);
               sendRef.current({
                 type: "offer",
                 target: msg.viewerId,
@@ -207,7 +209,7 @@ export default function ChatRoom({ initialRoomId }: ChatRoomProps) {
               });
             })
             .catch((err) =>
-              console.error("Failed to create offer:", err)
+              console.error("[Host] FAILED to create offer:", err)
             );
         }
       })
@@ -215,6 +217,7 @@ export default function ChatRoom({ initialRoomId }: ChatRoomProps) {
 
     unsubs.push(
       on("answer", (msg) => {
+        console.log("[Host] answer received from viewer:", msg.viewerId);
         if (!msg.viewerId) return;
         const pc = pcsRef.current.get(msg.viewerId);
         if (pc) {
@@ -323,6 +326,7 @@ export default function ChatRoom({ initialRoomId }: ChatRoomProps) {
 
     unsubs.push(
       on("joined", (msg) => {
+        console.log("[Viewer] joined handler fired, viewerId:", msg.viewerId);
         setMyId(msg.viewerId);
         setConnectionState("connected");
         setRole("viewer");
@@ -330,34 +334,43 @@ export default function ChatRoom({ initialRoomId }: ChatRoomProps) {
 
         const pc = createPeerConnection(
           (stream) => {
+            console.log("[Viewer] onTrack fired, stream tracks:", stream.getTracks().length);
             setRemoteStream(stream);
           },
           (candidate) => {
             sendRef.current({ type: "candidate", candidate });
           },
           (state) => {
+            console.log("[Viewer] connection state:", state);
             if (state === "connected") setConnectionState("connected");
             if (state === "failed") setConnectionState("error");
           }
         );
         viewerPcRef.current = pc;
+        console.log("[Viewer] PC created and stored");
       })
     );
 
     unsubs.push(
       on("offer", (msg) => {
+        console.log("[Viewer] offer handler fired, viewerPcRef set:", !!viewerPcRef.current);
         if (viewerPcRef.current) {
           handleOffer(viewerPcRef.current, msg.offer)
             .then(async (answer) => {
+              console.log("[Viewer] handleOffer succeeded, sending answer");
               sendRef.current({ type: "answer", answer });
+              console.log("[Viewer] answer sent, flushing candidates");
               await flushCandidates(
                 viewerPcRef.current!,
                 pendingViewerCandidatesRef.current
               );
+              console.log("[Viewer] candidates flushed");
             })
             .catch((err) =>
-              console.error("Failed to handle offer:", err)
+              console.error("[Viewer] handleOffer FAILED:", err)
             );
+        } else {
+          console.error("[Viewer] offer received but viewerPcRef is NULL - PC not created yet!");
         }
       })
     );
