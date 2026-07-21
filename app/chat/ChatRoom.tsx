@@ -49,6 +49,12 @@ export default function ChatRoom({ initialRoomId }: ChatRoomProps) {
   const streamRef = useRef<MediaStream | null>(null);
   const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const viewerPcRef = useRef<RTCPeerConnection | null>(null);
+  // ICE can arrive before setRemoteDescription() completes. Keep it until the
+  // peer is ready instead of losing the candidate and silently stalling media.
+  const pendingHostCandidatesRef = useRef<
+    Map<string, RTCIceCandidateInit[]>
+  >(new Map());
+  const pendingViewerCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const roleRef = useRef<AppRole>("undecided");
   const roomIdRef = useRef(initialRoomId || "");
   const userNameRef = useRef("");
@@ -82,6 +88,8 @@ export default function ChatRoom({ initialRoomId }: ChatRoomProps) {
       try { pc.close(); } catch {}
     });
     pcsRef.current.clear();
+    pendingHostCandidatesRef.current.clear();
+    pendingViewerCandidatesRef.current = [];
 
     if (viewerPcRef.current) {
       try { viewerPcRef.current.close(); } catch {}
@@ -106,6 +114,21 @@ export default function ChatRoom({ initialRoomId }: ChatRoomProps) {
       },
     ]);
   }, []);
+
+  const flushCandidates = useCallback(
+    async (pc: RTCPeerConnection, candidates: RTCIceCandidateInit[]) => {
+      while (candidates.length > 0) {
+        const candidate = candidates.shift();
+        if (!candidate) continue;
+        try {
+          await handleCandidate(pc, candidate);
+        } catch (err) {
+          console.error("Failed to add queued ICE candidate:", err);
+        }
+      }
+    },
+    []
+  );
 
   const handleExitRoom = useCallback(() => {
     cleanup();
@@ -195,9 +218,13 @@ export default function ChatRoom({ initialRoomId }: ChatRoomProps) {
         if (!msg.viewerId) return;
         const pc = pcsRef.current.get(msg.viewerId);
         if (pc) {
-          handleAnswer(pc, msg.answer).catch((err) =>
-            console.error("Failed to handle answer:", err)
-          );
+          handleAnswer(pc, msg.answer)
+            .then(() => {
+              const pending = pendingHostCandidatesRef.current.get(msg.viewerId!);
+              return pending ? flushCandidates(pc, pending) : undefined;
+            })
+            .then(() => pendingHostCandidatesRef.current.delete(msg.viewerId!))
+            .catch((err) => console.error("Failed to handle answer:", err));
         }
       })
     );
@@ -207,16 +234,26 @@ export default function ChatRoom({ initialRoomId }: ChatRoomProps) {
         if (roleRef.current === "host") {
           if (!msg.viewerId) return;
           const pc = pcsRef.current.get(msg.viewerId);
-          if (pc)
-            handleCandidate(pc, msg.candidate).catch((err) =>
-              console.error("Host candidate error:", err)
-            );
-        } else {
-          if (viewerPcRef.current) {
-            handleCandidate(viewerPcRef.current, msg.candidate).catch(
-              (err) => console.error("Viewer candidate error:", err)
-            );
+          if (!pc) return;
+          if (!pc.remoteDescription) {
+            const pending = pendingHostCandidatesRef.current.get(msg.viewerId) || [];
+            pending.push(msg.candidate);
+            pendingHostCandidatesRef.current.set(msg.viewerId, pending);
+            return;
           }
+          handleCandidate(pc, msg.candidate).catch((err) =>
+            console.error("Host candidate error:", err)
+          );
+        } else {
+          const pc = viewerPcRef.current;
+          if (!pc) return;
+          if (!pc.remoteDescription) {
+            pendingViewerCandidatesRef.current.push(msg.candidate);
+            return;
+          }
+          handleCandidate(pc, msg.candidate).catch((err) =>
+            console.error("Viewer candidate error:", err)
+          );
         }
       })
     );
@@ -297,6 +334,10 @@ export default function ChatRoom({ initialRoomId }: ChatRoomProps) {
           },
           (candidate) => {
             sendRef.current({ type: "candidate", candidate });
+          },
+          (state) => {
+            if (state === "connected") setConnectionState("connected");
+            if (state === "failed") setConnectionState("error");
           }
         );
         viewerPcRef.current = pc;
@@ -307,8 +348,12 @@ export default function ChatRoom({ initialRoomId }: ChatRoomProps) {
       on("offer", (msg) => {
         if (viewerPcRef.current) {
           handleOffer(viewerPcRef.current, msg.offer)
-            .then((answer) => {
+            .then(async (answer) => {
               sendRef.current({ type: "answer", answer });
+              await flushCandidates(
+                viewerPcRef.current!,
+                pendingViewerCandidatesRef.current
+              );
             })
             .catch((err) =>
               console.error("Failed to handle offer:", err)
@@ -545,7 +590,7 @@ export default function ChatRoom({ initialRoomId }: ChatRoomProps) {
         />
       )}
 
-      {connectionState === "error" && role === "undecided" && (
+      {connectionState === "error" && (
         <div className="min-h-screen flex items-center justify-center p-6 bg-black">
           <div className="max-w-md w-full bg-[#0a0a0a] border border-white/20 rounded-none p-8 text-center shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-1 bg-white" />
