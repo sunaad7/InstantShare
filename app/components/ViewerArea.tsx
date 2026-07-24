@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useCallback } from "react";
 import {
   Play,
   Pause,
@@ -33,22 +33,41 @@ export default function ViewerArea({
   const [streamActive, setStreamActive] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [tracksEnded, setTracksEnded] = useState(false);
+
+  const tryPlay = useCallback(async (mute = false) => {
+    if (!videoRef.current) return;
+    videoRef.current.muted = mute;
+    setIsMuted(mute);
+    try {
+      await videoRef.current.play();
+      setAutoplayBlocked(false);
+    } catch {
+      setAutoplayBlocked(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (videoRef.current && remoteStream) {
       videoRef.current.srcObject = remoteStream;
+      setTracksEnded(false);
       setStreamActive(true);
-      videoRef.current.play().catch(() => {
-        setAutoplayBlocked(true);
-        setIsMuted(true);
-        if (videoRef.current) {
-          videoRef.current.muted = true;
-          videoRef.current.play().catch(() => {});
-        }
-      });
+      tryPlay(false);
     } else {
       setStreamActive(false);
     }
+  }, [remoteStream, tryPlay]);
+
+  useEffect(() => {
+    if (!remoteStream) return;
+    const onEnded = () => {
+      const alive = remoteStream.getTracks().some((t) => t.readyState === "live");
+      if (!alive) setTracksEnded(true);
+    };
+    remoteStream.getTracks().forEach((t) => t.addEventListener("ended", onEnded));
+    return () => {
+      remoteStream.getTracks().forEach((t) => t.removeEventListener("ended", onEnded));
+    };
   }, [remoteStream]);
 
   useEffect(() => {
@@ -75,11 +94,11 @@ export default function ViewerArea({
   };
 
   const toggleMute = () => {
-    setIsMuted(!isMuted);
     if (autoplayBlocked) {
-      setAutoplayBlocked(false);
-      if (videoRef.current) videoRef.current.muted = false;
+      tryPlay(false);
+      return;
     }
+    setIsMuted(!isMuted);
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -161,19 +180,32 @@ export default function ViewerArea({
               <VolumeX className="h-8 w-8 text-white" />
             </div>
             <h4 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
-              Stream is playing muted
+              Stream is paused
             </h4>
             <p className="text-xs text-neutral-400 max-w-xs">
-              Browsers block video sound until you interact. Click below to
-              unmute.
+              Browsers block autoplay. Click below to start playback.
             </p>
             <button
-              onClick={toggleMute}
+              onClick={() => tryPlay(false)}
               className="bg-white hover:bg-neutral-200 text-black font-semibold py-2.5 px-6 rounded-none flex items-center gap-2 transition-colors text-xs uppercase tracking-wider shadow-lg cursor-pointer"
             >
               <Play className="h-4 w-4 fill-black" />
-              <span>Unmute Audio</span>
+              <span>Play Stream</span>
             </button>
+          </div>
+        )}
+
+        {streamActive && tracksEnded && (
+          <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-6 text-center z-10 space-y-4">
+            <div className="p-4 bg-white/5 border border-white/20 rounded-none">
+              <ShieldAlert className="h-8 w-8 text-white" />
+            </div>
+            <h4 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
+              Stream Ended
+            </h4>
+            <p className="text-xs text-neutral-400 max-w-xs">
+              The presenter has stopped sharing their screen.
+            </p>
           </div>
         )}
 
